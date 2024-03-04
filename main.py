@@ -23,7 +23,7 @@ from models import *
 ap = argparse.ArgumentParser()
 
 # Add the arguments to the parser
-ap.add_argument("--epochs", required=False, default = 2, type=int,
+ap.add_argument("--epochs", required=False, default = 50, type=int,
    help="Batch size for model")
 ap.add_argument("--lr", required=False, default=1e-3, type=float,
    help="constant learning rate for model")
@@ -40,6 +40,8 @@ ap.add_argument("--seed", required=False, default = 1, type=int,
    help="Choose seed")
 ap.add_argument("--neural_balance", required=False, default = 1, type=int,
    help="Whether we train with neural balance or not")
+ap.add_argument("--random", required=False, default = 0.0, type=float,
+   help="Whether we train we balance only some neurons randomly")
 
 args, leftovers = ap.parse_known_args()
 
@@ -109,10 +111,11 @@ history = {
 
 
     
-test_accuracies, norms = train(model = mlp, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, logger = logger, device = device)
+test_accuracies, norms = train(model = mlp, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, logger = logger, device = device)
 
 max_acc = max(test_accuracies)
 logger.info(f"Best val accuracy: {max_acc}")
+np.save(file_folder+ "/test_accuracies.npy", test_accuracies)
 
 
 #     history["t_loss"].append(train_loss)
