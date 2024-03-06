@@ -22,7 +22,7 @@ class CustomLinear(nn.Module):
         # Forward pass through the internal nn.Linear layer
         return self.linear(input)
     
-    def neural_balance(self, previous_layer, return_norms = False, random = 0.1):
+    def neural_balance(self, previous_layer, return_norms = False, ord = 2, random = 0.1):
         shape = previous_layer.weight.shape[0]
         norm = []
         
@@ -31,24 +31,22 @@ class CustomLinear(nn.Module):
             random_indexes = np.random.choice(shape, random_index_num, replace=False)
             random_indexes_tensor = torch.from_numpy(random_indexes).long().to(previous_layer.weight.device)
             
-            for i in random_indexes:
-                incoming = torch.linalg.norm(previous_layer.weight[random_indexes_tensor], dim=1, ord=2)
-                outgoing = torch.linalg.norm(self.linear.weight[:, random_indexes_tensor], dim=0, ord=2)
-                optimal_l = torch.sqrt(outgoing/incoming)
-                previous_layer.weight[random_indexes_tensor].data *= optimal_l.unsqueeze(1)
-                self.linear.weight[:,random_indexes_tensor].data /= optimal_l
-                if return_norms:
-                    norm.append(torch.linalg.norm(incoming/outgoing, dim = 0, ord=2))
+            incoming = torch.linalg.norm(previous_layer.weight[random_indexes_tensor], dim=1, ord=2)
+            outgoing = torch.linalg.norm(self.linear.weight[:, random_indexes_tensor], dim=0, ord=2)
+            optimal_l = torch.sqrt(outgoing/incoming)
+            previous_layer.weight[random_indexes_tensor].data *= optimal_l.unsqueeze(1)
+            self.linear.weight[:,random_indexes_tensor].data /= optimal_l
+
         else:
-#             for i in range(shape):
             incoming = torch.linalg.norm(previous_layer.weight, dim=1, ord=2)
             outgoing = torch.linalg.norm(self.linear.weight, dim=0, ord=2)
             optimal_l = torch.sqrt(outgoing/incoming)
             previous_layer.weight.data *= optimal_l.unsqueeze(1)
             self.linear.weight.data /= optimal_l
-            if return_norms:
-                norm.append(torch.linalg.norm(incoming/outgoing, dim = 0, ord=2))
-        if return_norms: return torch.mean(torch.stack(norm))
+            
+        if return_norms:
+            norm.append(torch.linalg.norm(incoming/outgoing, dim = 0, ord=2))
+            return torch.mean(torch.stack(norm))
         else: return torch.tensor([])
             
     

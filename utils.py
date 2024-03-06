@@ -15,7 +15,7 @@ import time
 from models import *
 
 
-def train(model, trainloader = None, testloader = None, epochs = 0, loss_function = None, optimizer = None, neural_balance = True, l1_weight=0, l2_weight=0, random = 0.0, logger = None, device = 'cuda:0'):
+def train(model, trainloader = None, testloader = None, epochs = 0, loss_function = None, optimizer = None, neural_balance = True, l1_weight=0, l2_weight=0, random = 0.0, neural_balance_epoch = 1, order = 2, logger = None, device = 'cuda:0'):
 
     linear_layers = []
     train_accuracies = []
@@ -89,12 +89,12 @@ def train(model, trainloader = None, testloader = None, epochs = 0, loss_functio
                 total_predictions += targets.size(0)
 
             if neural_balance:   
-                if epoch%1==0:
+                if epoch%neural_balance_epoch==0:
                     for count, linear in enumerate(linear_layers):
                         if count==0 or count == len(linear_layers)-1:
                             continue
 
-                        norm = linear.neural_balance(linear_layers[count-1], random)
+                        norm = linear.neural_balance(linear_layers[count-1], order = order, random = random)
                         norms.append(norm)
 
 

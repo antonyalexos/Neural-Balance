@@ -42,6 +42,10 @@ ap.add_argument("--neural_balance", required=False, default = 1, type=int,
    help="Whether we train with neural balance or not")
 ap.add_argument("--random", required=False, default = 0.0, type=float,
    help="Whether we train we balance only some neurons randomly")
+ap.add_argument("--neural_balance_epoch", required=False, default = 1, type=int,
+   help="Every how many epochs we are doing neural balance.")
+ap.add_argument("--order", required=False, default = 2, type=int,
+   help="Order of norm when doing neural balance.")
 
 args, leftovers = ap.parse_known_args()
 
@@ -111,11 +115,13 @@ history = {
 
 
     
-test_accuracies, norms = train(model = mlp, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, logger = logger, device = device)
+test_accuracies, norms = train(model = mlp, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, neural_balance_epoch = args.neural_balance_epoch, order = args.order, logger = logger, device = device)
 
 max_acc = max(test_accuracies)
 logger.info(f"Best val accuracy: {max_acc}")
 np.save(file_folder+ "/test_accuracies.npy", test_accuracies)
+
+torch.save(mlp.state_dict(), file_folder + '/model_weights.pth')
 
 
 #     history["t_loss"].append(train_loss)
