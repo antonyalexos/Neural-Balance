@@ -4,6 +4,9 @@ from os.path import join, exists, split
 import os
 import sys
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 import numpy as np
 import time
 from matplotlib import pyplot as plt
@@ -27,7 +30,10 @@ ap.add_argument("--epochs", required=False, default = 50, type=int,
    help="Batch size for model")
 ap.add_argument("--lr", required=False, default=1e-3, type=float,
    help="constant learning rate for model")
-ap.add_argument("--dataset", required=False, default = 'mnist', type=str, choices = ['mnist', 'cifar10'], help="choose dataset")
+ap.add_argument("--model", required=False, default = 'small_fcn', type=str, choices = ['small_fcn', 'large_fcn', 'rnn', 'lcn'],
+   help="choose dataset")
+ap.add_argument("--dataset", required=False, default = 'mnist', type=str, choices = ['mnist', 'cifar10'],
+   help="choose dataset")
 ap.add_argument("--gpu", required=False, default = '0', type=str,
    help="Choose GPU to use")
 ap.add_argument("--batch_size", required=False, default = 256, type=int,
@@ -36,7 +42,7 @@ ap.add_argument("--l1_weight", required=False, default = 0, type=float,
    help="Multiplier for L1 Regularizer")
 ap.add_argument("--l2_weight", required=False, default = 0, type=float,
    help="Multiplier for L2 Regularizer")
-ap.add_argument("--seed", required=False, default = 1, type=int,
+ap.add_argument("--seed", required=False, default = 42, type=int,
    help="Choose seed")
 ap.add_argument("--neural_balance", required=False, default = 1, type=int,
    help="Whether we train with neural balance or not")
@@ -80,7 +86,7 @@ device = torch.device(device)
 
 logger.info(f"Training on {device}")
 
-if args.dataset:
+if args.dataset == 'mnist':
     # Prepare MNIST dataset
     train_dataset = MNIST(os.getcwd(), train=True, download=True, transform=transforms.ToTensor())
     test_dataset = MNIST(os.getcwd(), train=False, download=True, transform=transforms.ToTensor())
@@ -88,12 +94,15 @@ if args.dataset:
 trainloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=1)
 testloader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=1)
 
-# Initialize the MLP
-mlp = MLP().to(device)
+if args.model=='small_fcn':
+    model = MLP_small().to(device)
+elif args.model=='large_fcn':
+    model = MLP_large().to(device)
+    
 
 # print(model)
 # print(f"The model has {trainable:,} trainable parameters and {frozen:,} frozen parameters")
-logger.info("Model Summary = {}".format(mlp))
+logger.info("Model Summary = {}".format(model))
 
 # logger.info(f"The model has {trainable:,} trainable parameters and {frozen:,} frozen parameters")
 
@@ -101,7 +110,7 @@ logger.info("Model Summary = {}".format(mlp))
 
 # Define the loss function and optimizer
 loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(mlp.parameters(), lr=args.lr)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 
 # The actual training and validation:
@@ -115,14 +124,41 @@ history = {
 
 
     
-test_accuracies, norms = train(model = mlp, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, neural_balance_epoch = args.neural_balance_epoch, order = args.order, logger = logger, device = device)
+test_accuracies, norms = train(model = model, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, neural_balance_epoch = args.neural_balance_epoch, order = args.order, logger = logger, device = device)
 
 max_acc = max(test_accuracies)
 logger.info(f"Best val accuracy: {max_acc}")
 np.save(file_folder+ "/test_accuracies.npy", test_accuracies)
 
-torch.save(mlp.state_dict(), file_folder + '/model_weights.pth')
+torch.save(model.state_dict(), file_folder + '/model_weights.pth')
 
+linear_layers = []
+weight_list = []
+
+for layer in model.layers:
+    if(isinstance(layer, CustomLinear)):
+#         linear_layers.append(layer)
+        weight_list.append(layer.weight)
+
+l2_balanced = [item for tensor in weight_list for sublist in tensor.tolist() for item in sublist]
+
+np.save(file_folder+ "/weights.npy", l2_balanced)
+
+plt.figure(figsize=(15,10))
+plt.title('L2 Regularization', fontsize='large')
+# sns.kdeplot(l2_regularized, color='blue', fill=True, label = 'L2 Regularization')
+sns.kdeplot(l2_balanced, color='red', fill=True, label = 'L2 Neural Balance')
+# sns.kdeplot(plain_weights, color='green', fill=True, label = 'Plain Weights')
+plt.legend(fontsize='large')
+plt.xlabel('Weights', fontsize='large')
+plt.ylabel('Frequency', fontsize='large')
+plt.xticks(fontsize='large')
+plt.yticks(fontsize='large')
+
+# plt.xlim(-.2, 0.2)
+# plt.ylim(0,10)
+
+plt.savefig(file_folder+ "/weights.png", bbox_inches='tight')
 
 #     history["t_loss"].append(train_loss)
 #     history["v_loss"].append(valid_loss)
