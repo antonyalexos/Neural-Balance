@@ -15,7 +15,7 @@ import time
 from models import *
 
 
-def train(model, trainloader = None, testloader = None, epochs = 0, loss_function = None, optimizer = None, neural_balance = True, l1_weight=0, l2_weight=0, random = 0.0, neural_balance_epoch = 1, order = 2, logger = None, device = 'cuda:0'):
+def train(model, trainloader = None, testloader = None, epochs = 0, loss_function = None, optimizer = None, neural_balance = True, l1_weight=0, l2_weight=0, random = 0.0, neural_balance_epoch = 1, order = 2, logger = None, writer = None, device = 'cuda:0'):
 
     train_accuracies = []
     norms = []
@@ -98,6 +98,10 @@ def train(model, trainloader = None, testloader = None, epochs = 0, loss_functio
                         norm = linear.neural_balance(linear_layers[count-1], order = order, random = random)
                         norms.append(norm)
 
+                        
+            for name, weight in model.named_parameters():
+                writer.add_histogram(name, weight, epoch)
+                writer.add_histogram(f'{name}.grad', weight.grad, epoch)
 
             # Calculate accuracy as the percentage of correct predictions
             accuracy = 100 * correct_predictions / total_predictions

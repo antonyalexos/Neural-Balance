@@ -19,6 +19,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torch.utils.tensorboard import SummaryWriter
+
 from utils import *
 from models import *
 
@@ -26,7 +28,7 @@ from models import *
 ap = argparse.ArgumentParser()
 
 # Add the arguments to the parser
-ap.add_argument("--epochs", required=False, default = 50, type=int,
+ap.add_argument("--epochs", required=False, default = 100, type=int,
    help="Batch size for model")
 ap.add_argument("--lr", required=False, default=1e-3, type=float,
    help="constant learning rate for model")
@@ -70,6 +72,8 @@ file_folder = 'logs/' + dt_string
 if not os.path.exists(file_folder):
     os.mkdir(file_folder)
 logger = log(file = dt_string+"/"+dt_string+".logs")
+
+writer = SummaryWriter('runs')
 
 for arg in vars(args):
     logger.info("{} = {}".format(arg, getattr(args, arg)))
@@ -124,7 +128,7 @@ history = {
 
 
     
-test_accuracies, norms = train(model = model, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, neural_balance_epoch = args.neural_balance_epoch, order = args.order, logger = logger, device = device)
+test_accuracies, norms = train(model = model, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, neural_balance_epoch = args.neural_balance_epoch, order = args.order, logger = logger, writer = writer, device = device)
 
 max_acc = max(test_accuracies)
 logger.info(f"Best val accuracy: {max_acc}")
