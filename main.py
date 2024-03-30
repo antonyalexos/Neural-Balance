@@ -128,7 +128,7 @@ history = {
 
 
     
-test_accuracies, norms = train(model = model, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, neural_balance_epoch = args.neural_balance_epoch, order = args.order, logger = logger, writer = writer, device = device)
+test_accuracies, lambdas = train(model = model, trainloader = trainloader, testloader = testloader, epochs = args.epochs, loss_function = loss_function, optimizer = optimizer, neural_balance = args.neural_balance, l1_weight=args.l1_weight, l2_weight=args.l2_weight, random = args.random, neural_balance_epoch = args.neural_balance_epoch, order = args.order, logger = logger, writer = writer, device = device)
 
 max_acc = max(test_accuracies)
 logger.info(f"Best val accuracy: {max_acc}")

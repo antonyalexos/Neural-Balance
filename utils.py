@@ -18,7 +18,7 @@ from models import *
 def train(model, trainloader = None, testloader = None, epochs = 0, loss_function = None, optimizer = None, neural_balance = True, l1_weight=0, l2_weight=0, random = 0.0, neural_balance_epoch = 1, order = 2, logger = None, writer = None, device = 'cuda:0'):
 
     train_accuracies = []
-    norms = []
+    lambdas = []
     test_accuracies = []
 
     # for neural balance
@@ -95,8 +95,8 @@ def train(model, trainloader = None, testloader = None, epochs = 0, loss_functio
                         if count==0:
                             continue
 
-                        norm = linear.neural_balance(linear_layers[count-1], order = order, random = random)
-                        norms.append(norm)
+                        lam = linear.neural_balance(linear_layers[count-1], order = order, random = random)
+                        lambdas.append(lam)
 
                         
             for name, weight in model.named_parameters():
@@ -122,7 +122,7 @@ def train(model, trainloader = None, testloader = None, epochs = 0, loss_functio
         logger.info(f"Best val accuracy: {max_acc}")
         sys.exit(130)
 
-    return test_accuracies, norms
+    return test_accuracies, lambdas
 
 
 

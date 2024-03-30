@@ -24,7 +24,7 @@ class CustomLinear(nn.Module):
     
     def neural_balance(self, previous_layer, return_norms = False, order = 2, random = 0.1):
         shape = previous_layer.weight.shape[0]
-        norm = []
+        lambdas = torch.tensor([])
         
         if random:
             random_index_num = int(random*shape)
@@ -46,10 +46,9 @@ class CustomLinear(nn.Module):
             self.linear.weight.data /= optimal_l
             
         if return_norms:
-            norm.append(incoming/outgoing)
-            return torch.mean(torch.stack(norm))
-        else: return torch.tensor([])
-            
+            lambdas.append(optimal_l)
+#         else: return torch.tensor([])
+        return lambdas
     
     
 class MLP_small(nn.Module):
