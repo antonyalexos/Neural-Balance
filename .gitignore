@@ -2,3 +2,8 @@ MNIST/
 data/
 logs/
 runs/
+.data/
+model.pt
+.ipynb_checkpoints/mnist-checkpoint.ipynb
+.ipynb_checkpoints/rnn_imdb-checkpoint.ipynb
+.vector_cache/
