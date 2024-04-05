@@ -5,6 +5,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import numpy as np
 import pickle
+import sys
 
 # Define the neural network architecture
 class NN(nn.Module):
@@ -81,7 +82,7 @@ def neuronalNeuralBalance(inl, oul):
     oul.weight.data = noul
 
 
-def define_and_train(model, dataset_training, dataset_test, loss_function, n_epochs=200, device=device):
+def define_and_train(model, dataset_training, dataset_test, loss_function, n_epochs=200, device='cpu'):
     trainloader = DataLoader(dataset_training, batch_size=500, shuffle=True)
     testloader = DataLoader(dataset_test, batch_size=500)
     
@@ -136,24 +137,29 @@ def define_and_train(model, dataset_training, dataset_test, loss_function, n_epo
 
     return hist
 
-# Load MNIST dataset
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
-])
+def main():
+    # Load MNIST dataset
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
 
-dataset_training = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-dataset_test = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-small_train_size = int(0.01 * len(dataset_training))  # 1% of the training data
-small_dataset_training, _ = torch.utils.data.random_split(dataset_training, [small_train_size, len(dataset_training) - small_train_size])
+    dataset_training = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+    dataset_test = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    small_train_size = int(0.01 * len(dataset_training))  # 1% of the training data
+    small_dataset_training, _ = torch.utils.data.random_split(dataset_training, [small_train_size, len(dataset_training) - small_train_size])
 
-# Instantiate the model and loss function, move model to CUDA if available
-loss_function = nn.CrossEntropyLoss()
+    # Instantiate the model and loss function, move model to CUDA if available
+    loss_function = nn.CrossEntropyLoss()
 
-# Train the model
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-for i in range(5):
-    model = NN().to(device) 
-    history = define_and_train(model, small_dataset_training, dataset_test, loss_function, device=device)
-    with open(f'exps/overfittingExperiments/runs/nbOnlineEveryEpochAcc{i}.pkl', 'wb') as f:
-        pickle.dump(history, f)
+    # Train the model
+    for i in range(5):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = NN().to(device) 
+        history = define_and_train(model, small_dataset_training, dataset_test, loss_function, device=device)
+        with open(f'exps/overfittingExperiments/runs/nbOnlineEveryEpochAcc{i}.pkl', 'wb') as f:
+            pickle.dump(history, f)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
