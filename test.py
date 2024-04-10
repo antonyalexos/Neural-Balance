@@ -1,4 +1,32 @@
+import random
+import numpy as np
 import torch
+
+# Set a seed value
+seed_value = 42
+
+# 1. Set `PYTHONHASHSEED` environment variable at a fixed value
+import os
+os.environ['PYTHONHASHSEED']=str(seed_value)
+
+# 2. Set `python` built-in pseudo-random generator at a fixed value
+random.seed(seed_value)
+
+# 3. Set `numpy` pseudo-random generator at a fixed value
+np.random.seed(seed_value)
+
+# 4. Set `torch` pseudo-random generator at a fixed value
+torch.manual_seed(seed_value)
+
+# 5. Depending on whether you are using CUDA
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(seed_value)
+    torch.cuda.manual_seed_all(seed_value)  # if you are using multi-GPU.
+    # The below is necessary for starting Nondeterministic operations
+    # See https://pytorch.org/docs/stable/notes/randomness.html
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
@@ -10,9 +38,15 @@ class NN(nn.Module):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(784, 4096),
+            nn.Linear(784, 8192),
+            nn.ReLU(),
+            nn.Linear(8192, 4096),
             nn.ReLU(),
             nn.Linear(4096, 2048),
+            nn.ReLU(),
+            # Add more layers
+            nn.ReLU(),
+            nn.Linear(2048, 2048),
             nn.ReLU(),
             nn.Linear(2048, 1024),
             nn.ReLU(),
@@ -62,10 +96,10 @@ def accuracy_and_loss(model, loss_function, dataloader, device):
     return accuracy, mean_loss
 
 def define_and_train(model, dataset_training, dataset_test, loss_function, n_epochs=500, device=device):
-    trainloader = DataLoader(dataset_training, batch_size=1000, shuffle=True)
-    testloader = DataLoader(dataset_test, batch_size=1000)
+    trainloader = DataLoader(dataset_training, batch_size=64, shuffle=False)
+    testloader = DataLoader(dataset_test, batch_size=64)
     
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0)#1e-7)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)#1e-7)
     for epoch in range(n_epochs):
         model.train() # Put the model in training mode
         total_loss = 0
