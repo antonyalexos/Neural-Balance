@@ -19,16 +19,21 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-seed = 42
-set_seed(seed)
-
 input_size = 784 
-hidden_size = 256
+hidden_size = [256]
+model_name = '256'
 num_classes = 10
 num_epochs = 100
 batch_size = 64
 learning_rate = 0.01
-weight_decay = 0.00001
+weight_decay = 0
+nb_order = 2
+l2 = False
+nb = False
+seed = 42
+
+
+set_seed(seed)
 
 # MNIST dataset
 transform = transforms.Compose([
@@ -36,23 +41,12 @@ transform = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-def neuronalNeuralBalance(inl, oul):
-
-    ninc = torch.zeros_like(inl)
-    noul = torch.zeros_like(oul)
-
-    for i in range(inl.data.shape[0]):
-
-        inc = torch.sqrt(torch.sum(torch.square(inl.data[i]))).item()
-        outg = torch.sqrt(torch.sum(torch.square(oul.data[:,i]))).item()
-
-        opt = np.sqrt(outg/inc)
-
-        ninc[i] = inl.data[i]*opt
-        noul[:, i] = oul.data[:,i]/opt
-
-    inl.data = ninc
-    oul.data = noul
+def neuralBalance(inl, oul, order):
+    incoming = torch.linalg.norm(inl.weight, dim=1, ord=order)
+    outgoing = torch.linalg.norm(oul.weight, dim=0, ord=order)
+    optimal_l = torch.sqrt(outgoing/incoming)
+    inl.weight.data *= optimal_l.unsqueeze(1)
+    oul.weight.data /= optimal_l
 
 train_dataset = torchvision.datasets.MNIST(os.getcwd(), train=True, transform=transform, download=True)
 test_dataset = torchvision.datasets.MNIST(os.getcwd(), train=False, transform=transform)
@@ -63,20 +57,24 @@ test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=Fa
 class NeuralNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(NeuralNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, num_classes)
-
+        self.layers = nn.ModuleList([nn.Linear(input_size, hidden_size[0])])
+        for i in range(len(hidden_size)-1):
+            self.layers.append(nn.Linear(hidden_size[i], hidden_size[i+1]))
+        self.layers.append(nn.Linear(hidden_size[len(hidden_size)-1], num_classes))
     def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        return out
+        for layer in self.layers[:-1]:
+            x = self.relu(layer(x))
+        x = self.layers[-1](x)
+        return x
 
 model = NeuralNet(input_size, hidden_size, num_classes).to(device)
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+if l2:
+    optimizer = optim.SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+else:
+    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
 hist = {}
 hist['train_loss'] = []
@@ -93,20 +91,16 @@ for epoch in range(num_epochs):
         loss = criterion(outputs, labels)
         train_loss+=loss.item()
 
-        # l2_norm = 0.0
-        # for param in model.parameters():
-        #     l2_norm += torch.norm(param, p=2) ** 2  # p=2 corresponds to the L2 norm
-        # l2_norm = torch.sqrt(l2_norm)
-        # loss+=weight_decay*l2_norm
-
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {train_loss / len(train_loader):.4f}')
 
-    
-    # neuronalNeuralBalance(model.fc1.weight, model.fc2.weight)
+    if nb:
+        lay = list(model.layers.children())
+        for i in range(len(lay)-1):
+            neuralBalance(lay[i], lay[i+1], order = nb_order)
         
     hist['train_loss'].append(train_loss / len(train_loader))
 
@@ -136,10 +130,10 @@ for epoch in range(num_epochs):
 
 import pickle
 
-with open('/baldig/proteomics2/ian/Neural-Balance/personalExps/hist/smallMnistModelL21e-5Hist.pkl', 'wb') as f:
+with open(f'personalExps\\MnistFC\\hist\\MnistModel-{model_name}-L2={l2}-l2Lambda={weight_decay}-nb={nb}.pkl', 'wb') as f:
     pickle.dump(hist, f)
 
-torch.save(model.state_dict(), '/baldig/proteomics2/ian/Neural-Balance/personalExps/models/smallMnistModelL21e-5.pt')
+torch.save(model.state_dict(), f'personalExps\\MnistFC\\models\\MnistModel-{model_name}-L2={l2}-l2Lambda={weight_decay}-nb={nb}.pt')
 
 
 
