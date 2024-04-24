@@ -37,10 +37,6 @@ def train(args, model, device, train_loader, optimizer, require_dir_der, epoch, 
 
         optimizer.step()
         # scheduler.step()
-        
-        neuronalNeuralBalance(model.fc_hidden[0].weight, model.fc_hidden[1].weight)
-        neuronalNeuralBalance(model.fc_hidden[1].weight, model.fc_hidden[2].weight)
-        neuronalNeuralBalance(model.fc_hidden[2].weight, model.fc_out.weight)
 
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.4f}'.format(
@@ -53,6 +49,10 @@ def train(args, model, device, train_loader, optimizer, require_dir_der, epoch, 
         training_loss += loss.item()
 
     training_loss /= (batch_idx + 1)
+    
+#     neuronalNeuralBalance(model.fc_hidden[0].weight, model.fc_hidden[1].weight)
+#     neuronalNeuralBalance(model.fc_hidden[1].weight, model.fc_hidden[2].weight)
+#     neuronalNeuralBalance(model.fc_hidden[2].weight, model.fc_out.weight)
 
     return training_loss
 
@@ -151,7 +151,7 @@ def main(args_list=None):
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     print(args.train_mode)
 
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device = torch.device("cuda:6" if use_cuda else "cpu")
 
     kwargs = {'batch_size': args.batch_size}
     if use_cuda:
@@ -227,6 +227,7 @@ def main(args_list=None):
 
     require_dir_der = args.train_mode == 'FDFA'
     print(model)
+   
     for epoch in range(1, args.epochs + 1):
         training_loss = train(args, model, device, train_loader, optimizer, require_dir_der, epoch, None)  # scheduler)
         test_loss, test_accuracy = test(model, device, test_loader)
