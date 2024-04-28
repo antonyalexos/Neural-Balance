@@ -1,3 +1,5 @@
+# https://github.com/Florian-BACHO/FDFA
+    
 from __future__ import print_function
 import argparse
 import numpy as np
@@ -50,9 +52,14 @@ def train(args, model, device, train_loader, optimizer, require_dir_der, epoch, 
 
     training_loss /= (batch_idx + 1)
     
-#     neuronalNeuralBalance(model.fc_hidden[0].weight, model.fc_hidden[1].weight)
-#     neuronalNeuralBalance(model.fc_hidden[1].weight, model.fc_hidden[2].weight)
-#     neuronalNeuralBalance(model.fc_hidden[2].weight, model.fc_out.weight)
+    if args.nb:
+        for i in range(len(model.fc_hidden)-1):
+            neuralBalance(model.fc_hidden[i], model.fc_hidden[i+1], order = 2)
+        neuralBalance(model.fc_hidden[-1], model.fc_out, order = 2)
+            
+#         neuronalNeuralBalance(model.fc_hidden[0].weight, model.fc_hidden[1].weight)
+#         neuronalNeuralBalance(model.fc_hidden[1].weight, model.fc_hidden[2].weight)
+#         neuronalNeuralBalance(model.fc_hidden[2].weight, model.fc_out.weight)
 
     return training_loss
 
@@ -79,23 +86,12 @@ def test(model, device, test_loader):
 
     return test_loss, test_accuracy
 
-def neuronalNeuralBalance(inl, oul):
-
-    ninc = torch.zeros_like(inl)
-    noul = torch.zeros_like(oul)
-
-    for i in range(inl.data.shape[0]):
-
-        inc = torch.sqrt(torch.sum(torch.square(inl.data[i]))).item()
-        outg = torch.sqrt(torch.sum(torch.square(oul.data[:,i]))).item()
-
-        opt = np.sqrt(outg/inc)
-
-        ninc[i] = inl.data[i]*opt
-        noul[:, i] = oul.data[:,i]/opt
-
-    inl.data = ninc
-    oul.data = noul
+def neuralBalance(inl, oul, order):
+    incoming = torch.linalg.norm(inl.weight, dim=1, ord=order)
+    outgoing = torch.linalg.norm(oul.weight, dim=0, ord=order)
+    optimal_l = torch.sqrt(outgoing/incoming)
+    inl.weight.data *= optimal_l.unsqueeze(1)
+    oul.weight.data /= optimal_l
 
 
 def main(args_list=None):
@@ -115,7 +111,7 @@ def main(args_list=None):
                         help='learning rate for backward parameters (default: 1e-4)')
     parser.add_argument('--gamma', type=float, default=0.95, metavar='M',
                         help='Learning rate step gamma (default: 0.95)')
-    parser.add_argument('--weight-decay', type=float, default=0.0, metavar='M',
+    parser.add_argument('--weight_decay', type=float, default=1e-4, metavar='M',
                         help='weight decay (default: 0.0)')
     parser.add_argument('--feedback-decay', type=float, default=0.0, metavar='M',
                         help='feedback decay (default: 0.0, recommended for DKP: 1e-6)')
@@ -125,7 +121,7 @@ def main(args_list=None):
                         help='quickly check a single pass')
     parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--train-mode', choices=['BP', 'DKP', 'DFA', 'FDFA'], default='FDFA',
+    parser.add_argument('--train-mode', choices=['BP', 'DKP', 'DFA', 'FDFA'], default='DFA',
                         help='choose between backpropagation (BP), Direct Kolen Pollack (DKP), '
                              'Direct Feedback Alignment (DFA) or Directional DFA (FDFA)')
     parser.add_argument('--log-dir', type=str, default='results/', metavar='DIR',
@@ -134,10 +130,12 @@ def main(args_list=None):
                         help='choose between MNIST, FashionMNIST, CIFAR10 or CIFAR100.')
     parser.add_argument('--conv', action='store_true', default=False,
                         help='train convolutional network.')
-    parser.add_argument('--n-layers', type=int, default=2, metavar='N',
+    parser.add_argument('--n_layers', type=int, default=2, metavar='N',
                         help='how many hidden layers in the network.')
-    parser.add_argument('--seed', type=int, default=-1, metavar='N',
+    parser.add_argument('--seed', type=int, default=-1,
                         help='seed for random generators.')
+    parser.add_argument('--nb', type=int, default=0,
+                        help='whether we are doing Neural Balance or not.')
 
     if args_list is None:
         args = parser.parse_args()
@@ -157,6 +155,9 @@ def main(args_list=None):
     if use_cuda:
         kwargs.update({'num_workers': 4,
                        'pin_memory': True})
+        
+    for arg in vars(args):
+        print("{} = {}".format(arg, getattr(args, arg)))
 
     transform_train = transforms.Compose([transforms.ToTensor(), transforms.Normalize(0.5, 0.5)])
     transform_test = transforms.Compose([transforms.ToTensor(), transforms.Normalize(0.5, 0.5)])
@@ -238,7 +239,8 @@ def main(args_list=None):
 
 if __name__ == '__main__':
     # Run the FDFA algorithm with a fully-connected DNN with 3 hidden layers on the MNIST dataset
-    main(["--n-layers=3", "--dataset=MNIST", "--train-mode=DFA"])
+#     main(["--n_layers=3", "--dataset=MNIST", "--train-mode=DFA"])
+    main()
 
     # Run the DFA algorithm with a fully-connected DNN with 3 hidden layers on the MNIST dataset
     #main(["--train-mode=DFA", "--n-layers=3", "--dataset=MNIST"])
