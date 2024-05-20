@@ -7,6 +7,8 @@ import time
 import numpy as np
 import random
 import pickle
+import argparse
+from tqdm import tqdm
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -78,26 +80,19 @@ def neuralBalance(lstm_layer):
         weight_ih = getattr(lstm_layer, f'weight_ih{suffix}')
         weight_hh = getattr(lstm_layer, f'weight_hh{suffix}')
 
-        inl = weight_ih.data.T
-        oul = weight_hh.data
+        inl = weight_ih.data
+        oul = weight_hh.data.T
 
-        ninc = torch.zeros_like(inl)
-        noul = torch.zeros_like(oul)
+        incoming = torch.linalg.norm(inl, dim=1, ord=2)
+        outgoing = torch.linalg.norm(oul, dim=0, ord=2)
+        optimal_l = torch.sqrt(outgoing/incoming)
         
-        for i in range(inl.data.shape[0]):
+        inl *= optimal_l.unsqueeze(1)
+        oul /= optimal_l
 
-            inc = torch.sqrt(torch.sum(torch.square(inl.data[i]))).item()
-            outg = torch.sqrt(torch.sum(torch.square(oul.data[:,i]))).item()
+        oul = oul.T
 
-            opt = np.sqrt(outg/inc)
-
-            ninc[i] = inl.data[i]*opt
-            noul[:, i] = oul.data[:,i]/opt
-        
-        weight_ih.data = ninc.T
-        weight_hh.data = noul
-
-def train(model, iterator, optimizer, criterion):
+def train(model, iterator, optimizer, criterion, l2_weight, nb, device):
     epoch_loss = 0
     epoch_acc = 0
     
@@ -112,6 +107,13 @@ def train(model, iterator, optimizer, criterion):
         predictions = model(text, text_lengths).squeeze(1)
         
         loss = criterion(predictions, batch.label)
+
+        if l2_weight > 0:
+            l2_reg = torch.tensor(0., device=device)
+            for param in model.parameters():
+                l2_reg += torch.norm(param)
+                loss += l2_weight * l2_reg
+
         acc = binary_accuracy(predictions, batch.label)
         
         loss.backward()
@@ -120,7 +122,8 @@ def train(model, iterator, optimizer, criterion):
         epoch_loss += loss.item()
         epoch_acc += acc.item()
     
-    # neuralBalance(model.rnn)
+    if nb:
+        neuralBalance(model.rnn)
         
     return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
@@ -132,7 +135,7 @@ def evaluate(model, iterator, criterion):
     
     with torch.no_grad():
     
-        for batch in iterator:
+        for batch in tqdm(iterator):
 
             text, text_lengths = batch.text
             
@@ -147,8 +150,26 @@ def evaluate(model, iterator, criterion):
     return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
 
-for iteration in range(5):
-    set_seed((5*iteration)+41)
+def main():
+    parser = argparse.ArgumentParser(description='IMDB')
+    parser.add_argument("--epochs", required=False, default = 100, type=int,help="Number Of Epochs The Model Is Trained For")
+    parser.add_argument("--lr", required=False, default=1e-3, type=float, help="constant learning rate for model")
+    parser.add_argument("--n_layers", required=False, default = 2, type=int, choices = [2, 3, 4, 5], help="choose number of layers in RNN")
+    parser.add_argument("--dataset", required=False, default = 'imdb', type=str, choices = ['imdb'],help="choose dataset")
+    parser.add_argument("--gpu", required=False, default = '0', type=str,help="Choose GPU to use")
+    parser.add_argument("--batchsize", required=False, default = 256, type=int,help="Choose batch_size for the dataset")
+    parser.add_argument("--l2_weight", required=False, default = 0, type=float, help="Multiplier for L2 Regularizer")
+    parser.add_argument("--seed", required=False, default = 42, type=int,help="Choose seed")
+    parser.add_argument("--neural_balance", required=False, default = 0, type=int,help="Whether we train with neural balance or not")
+    parser.add_argument("--neural_balance_epoch", required=False, default = 1, type=int,help="Every how many epochs we are doing neural balance.")
+    parser.add_argument("--order", required=False, default = 2, type=int,help="Order of norm when doing neural balance.")
+    parser.add_argument("--neuralFullBalanceAtStart", required = False, default = 0, type = int, help="Whether neural balance is fully performed before the model's training begins")
+    parser.add_argument("--trainDataFrac", required = False, default = 1, type = float, help = "What fraction of the training dataset is used in training")
+    args = parser.parse_args()
+
+
+
+    set_seed(args.seed)
 
     # Define the Fields for processing the dataset
     tokenizer = get_tokenizer('basic_english')
@@ -174,9 +195,9 @@ for iteration in range(5):
     LABEL.build_vocab(train_data)
 
     # Create iterators for the data
-    BATCH_SIZE = 64
+    BATCH_SIZE = args.batchsize
 
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
 
     train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits(
         (train_data, valid_data, test_data), 
@@ -188,7 +209,7 @@ for iteration in range(5):
     EMBEDDING_DIM = 100
     HIDDEN_DIM = 256
     OUTPUT_DIM = 1
-    N_LAYERS = 5
+    N_LAYERS = args.n_layers
     BIDIRECTIONAL = False
     DROPOUT = 0.5
     PAD_IDX = TEXT.vocab.stoi[TEXT.pad_token]
@@ -212,14 +233,14 @@ for iteration in range(5):
     model.embedding.weight.data[UNK_IDX] = torch.zeros(EMBEDDING_DIM)
     model.embedding.weight.data[PAD_IDX] = torch.zeros(EMBEDDING_DIM)
 
-    optimizer = optim.Adam(model.parameters(), lr=.001, weight_decay = .0001)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.BCEWithLogitsLoss()
 
     model = model.to(device)
     criterion = criterion.to(device)
 
 
-    N_EPOCHS = 50
+    N_EPOCHS = args.epochs
 
     best_valid_loss = float('inf')
 
@@ -229,21 +250,55 @@ for iteration in range(5):
     hist['test_loss'] = []
     hist['test_acc'] = []
 
+    if args.neuralFullBalanceAtStart == 1:
+        num_layers = model.rnn.num_layers
+        print('balancing fully at start')
+
+        while True:  
+            restart = False
+            for layer in range(num_layers):
+                # Define the suffix for identifying parameters for each layer
+                suffix = f'_l{layer}'
+                
+                # Access input-to-hidden and hidden-to-hidden weights
+                weight_ih = getattr(model.rnn, f'weight_ih{suffix}')
+                weight_hh = getattr(model.rnn, f'weight_hh{suffix}')
+
+                inl = weight_ih.data
+                oul = weight_hh.data.T
+
+                incoming = torch.linalg.norm(inl, dim=1, ord=2)
+                outgoing = torch.linalg.norm(oul, dim=0, ord=2)
+                optimal_l = torch.sqrt(outgoing/incoming)
+                temp = optimal_l.sum()/incoming.shape[0]
+
+                if temp > 1.01 or temp < .99:
+                    restart = True
+                
+                print(temp)
+
+                inl *= optimal_l.unsqueeze(1)
+                oul /= optimal_l
+
+                oul = oul.T
+
+            if not restart:
+                break
 
     for epoch in range(N_EPOCHS):
 
         start_time = time.time()
         
-        train_loss, train_acc = train(model, train_iterator, optimizer, criterion)
+        if args.neural_balance == 1 and epoch % args.neural_balance_epoch == 0:
+            train_loss, train_acc = train(model, train_iterator, optimizer, criterion, args.l2_weight, True, device)
+        else:
+            train_loss, train_acc = train(model, train_iterator, optimizer, criterion, args.l2_weight, False, device)
+        
         valid_loss, valid_acc = evaluate(model, valid_iterator, criterion)
         
         end_time = time.time()
 
         epoch_mins, epoch_secs = divmod(end_time - start_time, 60)
-        
-        if valid_loss < best_valid_loss:
-            best_valid_loss = valid_loss
-            torch.save(model.state_dict(), 'model.pt')
         
         print(f'Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
         print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
@@ -253,7 +308,10 @@ for iteration in range(5):
         hist['test_loss'].append(valid_loss)
         hist['test_acc'].append(valid_acc)
     
-    with open(f'/baldig/proteomics2/ian/Neural-Balance/personalExps/IMDbRnn/hist/iteration-{iteration}-rnn_imdb-{N_LAYERS}-layers-L2-1e-4-hist.pkl', 'wb') as f:
+    with open(f'/baldig/proteomics2/ian/Neural-Balance/personalExps/IMDbRnn/hist/IMDB-model_{args.n_layers}-l2Weight_{args.l2_weight}-seed_{args.seed}-neuralBalance_{args.neural_balance}-neuralBalanceAtStart_{args.neuralFullBalanceAtStart}-trainDataFrac_{args.trainDataFrac}.pkl', 'wb') as f:
         pickle.dump(hist, f)
 
-    torch.save(model.state_dict(), f'/baldig/proteomics2/ian/Neural-Balance/personalExps/MnistFC/models/iteration-{iteration}-rnn_imdb-{N_LAYERS}-layers-L2-1e-4.pt')
+    torch.save(model.state_dict(), f'Neural-Balance/personalExps/IMDbRnn/models/IMDB-model_{args.n_layers}-l2Weight_{args.l2_weight}-seed_{args.seed}-neuralBalance_{args.neural_balance}-neuralBalanceAtStart_{args.neuralFullBalanceAtStart}-trainDataFrac_{args.trainDataFrac}.pt')
+
+if __name__ == "__main__":
+    main()

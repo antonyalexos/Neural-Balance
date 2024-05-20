@@ -4,9 +4,12 @@ from tempfile import TemporaryDirectory
 from typing import Tuple
 
 import torch
+torch.utils.data.datapipes.utils.common.DILL_AVAILABLE = torch.utils._import_utils.dill_available()
+import torchdata
 from torch import nn, Tensor
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset
+from datasets import load_dataset
 
 class TransformerModel(nn.Module):
 
@@ -72,11 +75,10 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0)]
         return self.dropout(x)
     
-from torchtext.datasets import WikiText2
 from torchtext.data.utils import get_tokenizer
 from torchtext.vocab import build_vocab_from_iterator
 
-train_iter = WikiText2(split='train')
+train_iter = load_dataset(path="wikitext", name="wikitext-103-v1", split="train")
 tokenizer = get_tokenizer('basic_english')
 vocab = build_vocab_from_iterator(map(tokenizer, train_iter), specials=['<unk>'])
 vocab.set_default_index(vocab['<unk>'])

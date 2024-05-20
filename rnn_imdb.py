@@ -25,7 +25,7 @@ train_data, test_data = datasets.IMDB.splits(TEXT, LABEL)
 train_data, valid_data = train_data.split(split_ratio=0.7)
 
 # Build the vocabulary and load pre-trained word embeddings (GloVe)
-MAX_VOCAB_SIZE = 25_000
+MAX_VOCAB_SIZE = 25000
 
 TEXT.build_vocab(train_data, 
                  max_size = MAX_VOCAB_SIZE, 
@@ -37,7 +37,7 @@ LABEL.build_vocab(train_data)
 # Create iterators for the data
 BATCH_SIZE = 64
 
-device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
 
 train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits(
     (train_data, valid_data, test_data), 
@@ -183,7 +183,7 @@ N_EPOCHS = 5
 
 best_valid_loss = float('inf')
 
-for epoch in range(N_EPOCHS):
+for epoch in rangeo(N_EPOCHS):
 
     start_time = time.time()
     

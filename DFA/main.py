@@ -19,6 +19,32 @@ from utils.MultiOptimizer import MultipleOptimizer
 from utils.CSVLogger import CSVLogger
 
 def train(args, model, device, train_loader, optimizer, require_dir_der, epoch, scheduler):
+
+
+    # if args.neuralFullBalanceAtStart == 1:
+    #     print('full balancing at start')
+    #     while(True):
+    #         restart=False
+    #         for i in range(len(model.fc_hidden)-1):
+    #             lay1, lay2 = model.fc_hidden[i], model.fc_hidden[i+1]
+    #             incoming = torch.linalg.norm(lay1.weight, dim=1, ord=2)
+    #             outgoing = torch.linalg.norm(lay2.weight, dim=0, ord=2)
+    #             optimal_l = torch.sqrt(outgoing/incoming).sum()/incoming.shape[0]
+    #             print(optimal_l)
+    #             if optimal_l > 1.001 or optimal_l < .999:
+    #                 restart=True
+    #             neuralBalance(lay1, lay2, order = 2)
+    #         incoming = torch.linalg.norm(model.fc_hidden[-1].weight, dim=1, ord=2)
+    #         outgoing = torch.linalg.norm(model.fc_out.weight, dim=0, ord=2)
+    #         optimal_l = torch.sqrt(outgoing/incoming).sum()/incoming.shape[0]
+    #         print(optimal_l)
+    #         if optimal_l > 1.001 or optimal_l < .999:
+    #             restart=True
+    #         neuralBalance(model.fc_hidden[-1], model.fc_out, order = 2)
+    #         if not restart:
+    #             break
+
+
     model.train()
 
     training_loss = 0
@@ -111,12 +137,13 @@ def main(args_list=None):
                         help='learning rate for backward parameters (default: 1e-4)')
     parser.add_argument('--gamma', type=float, default=0.95, metavar='M',
                         help='Learning rate step gamma (default: 0.95)')
-    parser.add_argument('--weight_decay', type=float, default=1e-4, metavar='M',
+    parser.add_argument('--weight_decay', type=float, default=0, metavar='M',
                         help='weight decay (default: 0.0)')
     parser.add_argument('--feedback-decay', type=float, default=0.0, metavar='M',
                         help='feedback decay (default: 0.0, recommended for DKP: 1e-6)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
+    parser.add_argument('--gpu', type=int, default=0, help='which gpu to use')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
     parser.add_argument('--log-interval', type=int, default=100, metavar='N',
@@ -136,6 +163,8 @@ def main(args_list=None):
                         help='seed for random generators.')
     parser.add_argument('--nb', type=int, default=0,
                         help='whether we are doing Neural Balance or not.')
+    parser.add_argument('--neuralFullBalanceAtStart', type=int, default=0,
+                        help='whether we are doing Neural Balance or not.')
 
     if args_list is None:
         args = parser.parse_args()
@@ -149,7 +178,7 @@ def main(args_list=None):
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     print(args.train_mode)
 
-    device = torch.device("cuda:6" if use_cuda else "cpu")
+    device = torch.device(f"cuda:{args.gpu}" if use_cuda else "cpu")
 
     kwargs = {'batch_size': args.batch_size}
     if use_cuda:
@@ -200,6 +229,11 @@ def main(args_list=None):
 
     logger = CSVLogger(['Epoch', 'Training Loss', 'Test Loss', 'Test Accuracy'], args)
 
+    hist = {}
+    hist['train_loss'] = []
+    hist['test_loss'] = []
+    hist['test_acc'] = []
+
     if args.train_mode in ['DKP', 'FDFA']:
         # we need to run through the network once to properly initialize the backward weights
         test(model, device, test_loader)
@@ -233,9 +267,16 @@ def main(args_list=None):
         training_loss = train(args, model, device, train_loader, optimizer, require_dir_der, epoch, None)  # scheduler)
         test_loss, test_accuracy = test(model, device, test_loader)
 
+        hist['train_loss'].append(training_loss)
+        hist['test_loss'].append(test_loss)
+        hist['test_acc'].append(test_accuracy)
+
         logger.save_values(epoch, training_loss, test_loss, test_accuracy)
         scheduler.step()
 
+    import pickle
+    with open(f'/baldig/proteomics2/ian/Neural-Balance/DFA/results/DFA/hist/DFA-n_layers_{args.n_layers}-seed_{args.seed}-lr_{args.lr}-l2_{args.weight_decay}-neuralBalance_{args.nb}-neuralBalanceAtStart_{args.neuralFullBalanceAtStart}.pkl', 'wb') as f:
+        pickle.dump(hist, f)
 
 if __name__ == '__main__':
     # Run the FDFA algorithm with a fully-connected DNN with 3 hidden layers on the MNIST dataset
