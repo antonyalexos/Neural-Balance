@@ -1,6 +1,0 @@
-MNIST/
-data/
-logs/
-runs/
-.data/
-model.pt
