@@ -4,6 +4,8 @@ The plots, code, and scripts for the experiments are divided by model type, and 
 
   FMNIST-FCN
 
+  hist: folder containing the experimental results from our paper
+
     FashionMnist.py: contains the code used to run a single experiment on the fashion mnist dataset using a fully connected model architecture.
       Input arguments and description are located in the file, or can be referenced by adding '--help' at the end of the call to the script
 
@@ -14,6 +16,8 @@ The plots, code, and scripts for the experiments are divided by model type, and 
 
   IMDB-RNN
 
+    hist: folder containing the experimental results from our paper
+    
     rnn_imdb.py: contains the code used to run a single experiment on the IMDB dataset using a recurrent neural network model architecture.
       Input arguments and description are located in the file, or can be referenced by adding '--help' at the end of the call to the script
 
@@ -29,6 +33,8 @@ The plots, code, and scripts for the experiments are divided by model type, and 
       Input arguments and description are located in the file, or can be referenced by adding '--help' at the end of the call to the script
 
   MNIST-FCN
+
+    hist: folder containing the experimental results from our paper
   
     Mnist.py: contains the code used to run a single experiment on the mnist dataset using a fully connected model architecture.
       Input arguments and description are located in the file, or can be referenced by adding '--help' at the end of the call to the script
