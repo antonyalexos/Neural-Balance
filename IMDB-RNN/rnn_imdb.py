@@ -9,6 +9,7 @@ import random
 import pickle
 import argparse
 from tqdm import tqdm
+import csv
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -63,6 +64,7 @@ class RNN(nn.Module):
         return self.fc(hidden)
 
 def binary_accuracy(preds, y):
+    """Returns accuracy per batch, i.e. if you get 8/10 right, this returns 0.8"""
     rounded_preds = torch.round(torch.sigmoid(preds))
     correct = (rounded_preds == y).float()  # convert into float for division 
     acc = correct.sum() / len(correct)
@@ -163,9 +165,22 @@ def main():
     parser.add_argument("--order", required=False, default = 2, type=int,help="Order of norm when doing neural balance.")
     parser.add_argument("--neuralFullBalanceAtStart", required = False, default = 0, type = int, help="Whether neural balance is fully performed before the model's training begins")
     parser.add_argument("--trainDataFrac", required = False, default = 1, type = float, help = "What fraction of the training dataset is used in training")
+    parser.add_argument("--foldername", required = True, default = "default", type=str, help = "folder name")
+    parser.add_argument("--filename", required = True, default = "default", type=str, help = "file name")
     args = parser.parse_args()
 
     set_seed(args.seed)
+
+    headers = ['epoch', 'test_accuracy', 'train_loss', 'test_loss']
+    try:
+        csv_file = f'IMDB-RNN/hist/{args.foldername}/{args.filename}.csv'
+        with open(csv_file, mode='w', newline='') as file:
+            file.write(','.join(headers) + '\n')
+    except IOError as e:
+        print(f"Unable to create file {csv_file}: {e}")
+        exit(1)
+
+    file.close()
 
     # Define the Fields for processing the dataset
     tokenizer = get_tokenizer('basic_english')
@@ -309,6 +324,10 @@ def main():
         hist['train_acc'].append(train_acc)
         hist['test_loss'].append(valid_loss)
         hist['test_acc'].append(valid_acc)
-    
+
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([epoch, valid_acc, train_loss, valid_loss])
+
 if __name__ == "__main__":
     main()
